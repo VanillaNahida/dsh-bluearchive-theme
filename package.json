@@ -1,0 +1,51 @@
+{
+  "name": "dsh-bluearchive-theme",
+  "version": "1.0.0",
+  "description": "蔚蓝档案（Blue Archive）主题 for DeepSeek Harness Web GUI — 基沃托斯的天空、低多边形装饰、Blueaka 字体与蔚蓝档案式弹窗。",
+  "private": true,
+  "type": "module",
+  "main": "lib/index.js",
+  "exports": {
+    ".": "./lib/index.js",
+    "./client": "./lib/client.js",
+    "./locale/en.json": "./locale/en.json",
+    "./locale/zh.json": "./locale/zh.json",
+    "./icon": "./icon.svg",
+    "./package.json": "./package.json"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "inject": [
+        "@deepseek-ai/dsh-client-locale",
+        "@deepseek-ai/dsh-client-ui-slots"
+      ]
+    }
+  },
+  "files": [
+    "lib",
+    "locale",
+    "icon.svg",
+    "cordis.patch.yml",
+    "README.md",
+    "PROVENANCE.md",
+    "THIRD_PARTY_NOTICES.md",
+    "LICENSE",
+    "assets/ba-click-fx.LICENSE"
+  ],
+  "keywords": [
+    "dsh",
+    "dsh-plugin",
+    "deepseek-harness",
+    "theme",
+    "blue-archive",
+    "bluearchive",
+    "arona",
+    "plana",
+    "ui"
+  ],
+  "license": "MIT"
+}
