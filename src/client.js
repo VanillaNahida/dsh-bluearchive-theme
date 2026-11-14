@@ -526,6 +526,26 @@ window.__ModuleLoader__.load({
 				),
 			);
 
+			// Some markdown renderers mark code blocks draggable; Chromium then
+			// suppresses text selection inside them. Keep the blocks selectable.
+			const unlockCodeBlocks = () => {
+				if (disposed) return;
+				for (const block of document.querySelectorAll('.md-code-block[draggable]')) {
+					block.removeAttribute('draggable');
+				}
+			};
+			let codeObserver = null;
+			if (document.body) {
+				codeObserver = new MutationObserver(unlockCodeBlocks);
+				codeObserver.observe(document.body, {
+					childList: true,
+					subtree: true,
+					attributes: true,
+					attributeFilter: ['draggable'],
+				});
+				unlockCodeBlocks();
+			}
+
 			let navObserver = null;
 			let navRaf = 0;
 			const markNavIcon = () => {
@@ -564,6 +584,7 @@ window.__ModuleLoader__.load({
 				disposed = true;
 				engine = null;
 				if (navObserver) navObserver.disconnect();
+				if (codeObserver) codeObserver.disconnect();
 				if (navRaf) cancelAnimationFrame(navRaf);
 				if (media.removeEventListener) media.removeEventListener('change', onThemeChange);
 				else if (media.removeListener) media.removeListener(onThemeChange);

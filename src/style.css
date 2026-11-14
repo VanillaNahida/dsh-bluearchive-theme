@@ -1335,3 +1335,11 @@ body[data-ba-theme] [data-variant="think"][data-expanded] [data-disclosure-heade
 		transition: none;
 	}
 }
+
+/* Keep markdown code blocks selectable and copyable. */
+body[data-ba-theme] .md-code-block,
+body[data-ba-theme] .md-code-block pre,
+body[data-ba-theme] .md-code-block code {
+	user-select: text !important;
+	-webkit-user-select: text !important;
+}

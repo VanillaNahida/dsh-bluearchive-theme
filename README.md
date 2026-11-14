@@ -1,6 +1,6 @@
 <div align="center">
 
-  ![:name](https://count.getloli.com/@dsh-bluearchive-theme?name=dsh-bluearchive-theme&theme=moebooru&padding=6&offset=0&align=top&scale=1&pixelated=1&darkmode=auto)
+  ![:name](https://count.getloli.com/@dsh-bluearchive-theme?name=dsh-bluearchive-theme&theme=minecraft&padding=6&offset=0&align=top&scale=1&pixelated=1&darkmode=auto)
 
   <img width="100%" alt="基沃托斯" src="docs/hero.jpg" />
 
@@ -51,6 +51,7 @@
 - ✅ **蔚蓝档案式弹窗**：58px 浅蓝色带、左侧插画、居中标题 + 金色下划线、白色卡片式设置行。
 - ✅ **独立设置选项卡**：设置左侧新增「蔚蓝档案主题」，Schale 徽记作为图标，不再挤在「通用设置」列表里。
 - ✅ **可选点击特效**：接入 [`ba-click-fx`](https://github.com/CialloKing/ba-click-fx)，开启后全局点击出现光环、碎片与拖尾；单独开关，随时销毁。
+- ✅ **代码块可选中复制**：移除代码块上导致 Chromium 禁止选择的 `draggable` 标记，保留原生行号与复制按钮。
 - ✅ **自动启用 / 一键关闭**：首次安装自动启用；关闭开关即恢复官方外观，不污染官方主题偏好。
 
 # 安装
@@ -195,6 +196,10 @@ ctx.slots.register({
 「点击特效」开关默认关闭。开启时按需创建一个 `ba-click-fx` 实例，关闭开关、关闭主题或插件卸载时调用 `destroy()`，不会在每次重绘时重复创建。
 
 `ba-click-fx` 发布的是 ESM。`build.mjs` 去掉文件末尾的 `export { ... }`，把类挂到 `globalThis.__baClickFX` 后再拼到 `lib/client.js` 前面，避免动态 `import()` 在严格 CSP 下被拦截。构建时还把上游默认的 `#4ca7ff` 统一替换为蔚蓝档案蓝 `#128afa`。上游为 MIT，版权声明见 [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md)。
+
+## 代码块选择
+
+部分插件会给 `.md-code-block` 加上 `draggable` 属性。Chromium 会把可拖拽元素当作拖拽源，鼠标拖动时不会建立文本选区，代码块因此无法选中复制。插件用 `MutationObserver` 移除该属性，并用 `user-select: text !important` 兜底；原生行号、语言标签与复制按钮都不受影响。
 
 ## 样式作用域
 
