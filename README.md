@@ -89,10 +89,30 @@
 |---|---|
 | 总开关 | 开启 / 关闭整套主题覆盖层 |
 | 背景 | 天空 / 教室 / 黄昏 / 星夜 |
+| 界面背景壁纸 | 选择本机图片作为整个界面背景，并调节毛玻璃模糊强度 |
 | 侧栏立绘 | 侧边栏底部的 Arona / Plana 水印 |
 | 低多边形纹理 | 画布与侧栏的城市纹样 |
 | 玻璃质感 | 输入框与浮层的磨砂玻璃效果 |
 | 弹窗插画 | 设置弹窗顶部的低多边形色带与 Schale 装饰 |
+| 全局蔚蓝档案字体 | 全界面文字统一为 Blueaka 字体族，代码块 / 终端 / 公式除外 |
+
+## 自定义壁纸
+
+「界面背景壁纸」区块可以选一张本机图片铺满整个界面：
+
+- **选择图片 / 更换图片** 打开文件选择器（`image/*`）。图片先解码，再按 1600 → 1280 → 1024 → 768 的长边阶梯重新编码为 WebP（不支持时退回 JPEG），直到体积落入存储预算，相机原图也不会撑爆 `localStorage`。
+- **磨砂程度** 控制背景模糊半径：会话取面板数值，侧边栏恒定为面板数值 **+5 px**，所以侧边栏永远比会话窗口更朦胧。
+- **移除背景** 回到上方选中的场景；直接点选场景色板也会移除自定义壁纸，避免选了场景却看不见。
+
+壁纸单独存放在 `dsh.bluearchive-theme.wallpaper.v1`，设置 JSON 里不含图片数据：Cookie 回退只有几百字节，配额不足时最多丢失壁纸，其余设置不受影响。
+
+## 全局字体
+
+「全局蔚蓝档案字体」开关默认关闭。开启后整个界面（侧栏、对话、菜单、弹窗、设置页、按钮与输入框）都使用 Blueaka 字体族；代码块、终端、行内代码与 KaTeX 公式保持各自的等宽/数学字体。
+
+实现上只重定向一个令牌：DSH 的界面文字全部经由 `--dsw-font-family` 取字体（`body` 与各组件都是），而代码类表面走 `--ds-font-family-code` / `--dsw-font-mono`、公式走 KaTeX 自带字体族，所以改这一个变量既覆盖全部正文，又天然不碰代码——不需要 `* { font-family: ... !important }` 那种会连代码 token 一起改写的写法。
+
+Blueaka 只含拉丁子集，中文仍按 `--ba-font` 的次序回落到 FZLanTingYuan / 苹方 / 微软雅黑，因此中英文可以混排。
 
 ## 明暗模式
 
@@ -153,6 +173,8 @@ dsh-bluearchive-theme/
 │   ├── client.js            # 构建产物（内联 CSS / 令牌 / 素材）
 │   └── index.js             # host 侧空壳
 ├── build.mjs                # 构建脚本
+├── logo.png                 # 插件图标（package.json 的 icon 与 exports["./icon"]）
+├── icon.svg                 # 旧图标，保留备用
 ├── cordis.patch.yml         # bundle 插入行
 ├── package.json
 ├── README.md
@@ -189,7 +211,13 @@ ctx.slots.register({
 }, BlueArchiveSection)
 ```
 
+插件图标由 `package.json` 的 `icon` 字段与 `exports["./icon"]` 一并指向 `logo.png`。
+
 设置外壳的导航图标是按 section id 硬编码的，第三方 section 默认得到齿轮。插件用 `MutationObserver` 找到文字为「蔚蓝档案主题」的导航按钮，把齿轮 SVG 替换为 Schale 徽记图片；关闭设置时自动断开观察器。
+
+## 壁纸层
+
+壁纸画在 `body::after` 上：`position: fixed` + `z-index: -1`，因此位于画布背景之上、装饰纹理（`body::before`，`z-index: 0`）与应用外壳（`#root`，`z-index: 1`）之下。图层按 `inset: -(2 × 模糊半径 + 12px)` 外扩，模糊边缘的透明晕不会进入视口；同时叠一层随明暗切换的 scrim 保证文字对比度。侧边栏额外叠 `backdrop-filter: blur(面板值 + 5px)` 得到更朦胧的一层。
 
 ## 点击特效
 

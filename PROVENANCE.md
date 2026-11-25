@@ -15,6 +15,7 @@
 | `assets/pattern.svg` | 低多边形底纹 | `vitepress-theme-bluearchive` 主题素材，重着色 |
 | `assets/deco2.svg` | 低多边形城市色带 | `vitepress-theme-bluearchive` 主题素材，重着色 |
 | `assets/blueaka.woff2` / `blueaka-bold.woff2` | Blueaka 拉丁子集 | `vitepress-theme-bluearchive` 随附字体 |
+| `logo.png` | 插件图标（设置页与插件清单共用） | 用户提供 |
 
 `© NEXON Games / Yostar` — 阿罗娜、普拉娜及所有 Blue Archive 角色与场景素材归其原始权利人所有。请勿将这些素材用于商业用途或在本机个人环境之外再分发。
 

@@ -6,7 +6,7 @@
    ========================================================================= */
 
 body[data-ba-theme] {
-	--ba-font: "Blueaka", "FZLanTingYuan", "Montserrat", "PingFang SC", "Microsoft YaHei", ui-sans-serif, system-ui, sans-serif;
+	--ba-font: "Blueaka", "FZLanTingYuan", "Montserrat", "PingFang SC", "Microsoft YaHei", "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji", ui-sans-serif, system-ui, sans-serif;
 	--ba-sky: #128afa;
 	--ba-sky-deep: #0a6bb8;
 	--ba-gold: #ffd84d;
@@ -55,6 +55,17 @@ body[data-ba-theme="dark"] {
 	--ba-card-sky: linear-gradient(180deg, #1d2840 0%, #172034 100%);
 }
 
+/* ---------- global Blueaka font ------------------------------------------ */
+
+/* Every UI surface in the app resolves its family through --dsw-font-family;
+   code, terminal and monospace surfaces resolve through --ds-font-family-code
+   or --dsw-font-mono, which this rule leaves alone. Retargeting the one UI
+   token therefore restyles all chrome and prose — and only that. KaTeX keeps
+   its own families because it never reads this token either. */
+body[data-ba-theme][data-ba-font="on"] {
+	--dsw-font-family: var(--ba-font);
+}
+
 /* ---------- canvas ------------------------------------------------------- */
 
 body[data-ba-theme] {
@@ -90,7 +101,7 @@ body[data-ba-theme]::before {
 	content: "";
 	position: fixed;
 	inset: 0;
-	z-index: 0;
+	z-index: 1;
 	pointer-events: none;
 	background-image: var(--ba-pattern-img);
 	background-repeat: no-repeat;
@@ -109,7 +120,50 @@ body[data-ba-pattern="off"]::before {
 
 body[data-ba-theme] #root {
 	position: relative;
-	z-index: 1;
+	z-index: 2;
+}
+
+/* ---------- custom wallpaper -------------------------------------------- */
+
+/* A picked image replaces the built-in canvas; the scene swatches stay as
+   presets. The layer is oversized by twice the blur radius so the filter's
+   soft transparent halo never reaches the viewport edge. */
+body[data-ba-theme][data-ba-wall="on"],
+body[data-ba-theme][data-ba-wall="on"][data-ba-bg="sky"],
+body[data-ba-theme][data-ba-wall="on"][data-ba-bg="classroom"],
+body[data-ba-theme][data-ba-wall="on"][data-ba-bg="sunset"],
+body[data-ba-theme][data-ba-wall="on"][data-ba-bg="twilight"] {
+	background-image: none;
+}
+
+body[data-ba-theme][data-ba-wall="on"] {
+	--ba-wall-scrim: linear-gradient(180deg, rgba(255, 255, 255, 0.08) 0%, rgba(222, 238, 252, 0.3) 100%);
+}
+
+body[data-ba-theme="dark"][data-ba-wall="on"] {
+	--ba-wall-scrim: linear-gradient(180deg, rgba(4, 10, 20, 0.5) 0%, rgba(4, 10, 18, 0.7) 100%);
+}
+
+body[data-ba-theme][data-ba-wall="on"]::after {
+	content: "";
+	position: fixed;
+	inset: var(--ba-wall-inset, 0px);
+	/* Positive stacking: the pattern sits at 1, the shell at 2. A negative index
+	   would hide the wallpaper whenever body became a stacking context, which
+	   the Darwin shell forces with isolation: isolate. */
+	z-index: 0;
+	pointer-events: none;
+	background-image: var(--ba-wall-scrim), var(--ba-wall);
+	background-position: center;
+	background-repeat: no-repeat;
+	background-size: cover;
+	filter: blur(var(--ba-wall-blur, 0px)) saturate(1.04);
+}
+
+/* The sidebar always sits one step hazier than the conversation. */
+body[data-ba-theme][data-ba-wall="on"] [class*="sidebarCol"] {
+	-webkit-backdrop-filter: blur(var(--ba-wall-blur-side, 5px)) saturate(1.06);
+	backdrop-filter: blur(var(--ba-wall-blur-side, 5px)) saturate(1.06);
 }
 
 body[data-ba-theme] [data-slot="root"] > [class*="_frame"],
@@ -279,6 +333,30 @@ body[data-ba-theme] [role="dialog"][aria-modal="true"] {
 
 body[data-ba-theme="dark"] [role="dialog"][aria-modal="true"] {
 	box-shadow: 6px 6px 0 rgba(110, 207, 255, 0.08) !important;
+}
+
+/* The image lightbox is not a card. It portals its own
+   [role="dialog"][aria-modal="true"] element onto <body> and the stock
+   stylesheet lays that element out as a full-screen overlay
+   (position: fixed; inset: 0; z-index: 1000). The card treatment above forced
+   position: relative, which dropped the overlay into normal flow after #root —
+   below the fold and behind the app — so clicking an image in the conversation
+   looked like it did nothing. Restore the overlay geometry and drop the card
+   paint (card background, border, radius, shadow, pop animation, top band). */
+body[data-ba-theme] [role="dialog"][aria-modal="true"]:is([class*="_backdrop_"], :has(> div > img)) {
+	position: fixed;
+	inset: 0;
+	z-index: 1000;
+	background: transparent !important;
+	border: 0;
+	border-radius: 0 !important;
+	box-shadow: none !important;
+	overflow: visible;
+	animation: none;
+}
+
+body[data-ba-theme] [role="dialog"][aria-modal="true"]:is([class*="_backdrop_"], :has(> div > img))::before {
+	display: none;
 }
 
 body[data-ba-theme] [role="dialog"][aria-modal="true"]:not([data-shortcut-modal="settings"])::before {
@@ -1258,6 +1336,166 @@ body[data-ba-theme="dark"] .ba-logo {
 	line-height: 1.5;
 	color: var(--ba-muted);
 	text-align: center;
+}
+
+/* ---------- wallpaper card ------------------------------------------------ */
+
+.ba-wall {
+	display: grid;
+	grid-template-columns: 136px minmax(0, 1fr);
+	gap: 14px;
+	align-items: start;
+}
+
+.ba-wall-thumb {
+	position: relative;
+	height: 84px;
+	overflow: hidden;
+	display: grid;
+	place-items: center;
+	border: 2px solid var(--ba-line);
+	border-radius: 10px;
+	background: rgba(18, 138, 250, 0.06);
+}
+
+.ba-wall-thumb[data-empty="true"] {
+	border-style: dashed;
+	border-color: var(--ba-line-strong);
+}
+
+.ba-wall-thumb img {
+	display: block;
+	width: 100%;
+	height: 100%;
+	object-fit: cover;
+}
+
+.ba-wall-empty {
+	padding: 0 8px;
+	font-size: 11px;
+	line-height: 1.35;
+	color: var(--ba-muted);
+	text-align: center;
+}
+
+.ba-wall-copy {
+	min-width: 0;
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+}
+
+.ba-wall-actions {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 6px;
+}
+
+/* The chip primitive only existed inside the legacy .ba-card; the settings
+   page is a .ba-page, so the wallpaper actions need their own base metrics. */
+.ba-page .ba-chip {
+	display: inline-flex;
+	align-items: center;
+	gap: 5px;
+	height: 26px;
+	padding: 0 10px;
+	border: 1px solid var(--ba-line);
+	border-radius: 7px;
+	background: var(--ba-card);
+	color: var(--ba-ink-soft);
+	font-family: var(--ba-font);
+	font-size: 11px;
+	font-weight: 600;
+	cursor: pointer;
+	box-shadow: 1px 1px 0 rgba(18, 138, 250, 0.08);
+	transition: border-color 0.16s ease, color 0.16s ease, background 0.16s ease;
+}
+
+.ba-page .ba-chip:hover:not([disabled]) {
+	border-color: var(--ba-line-strong);
+	color: var(--ba-sky-deep);
+}
+
+.ba-page .ba-chip:focus-visible {
+	outline: 2px solid var(--ba-sky);
+	outline-offset: 2px;
+}
+
+.ba-wall-actions .ba-chip[disabled] {
+	opacity: 0.45;
+	cursor: not-allowed;
+}
+
+.ba-wall-actions .ba-chip[disabled]:hover {
+	border-color: var(--ba-line);
+	color: var(--ba-ink-soft);
+}
+
+.ba-wall-slider {
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+}
+
+.ba-wall-values {
+	display: flex;
+	justify-content: space-between;
+	gap: 8px;
+	font-size: 11px;
+	font-weight: 600;
+	letter-spacing: 0.02em;
+	color: var(--ba-muted);
+}
+
+.ba-wall-range {
+	-webkit-appearance: none;
+	appearance: none;
+	width: 100%;
+	height: 18px;
+	margin: 0;
+	background: transparent;
+	cursor: pointer;
+}
+
+.ba-wall-range:disabled {
+	cursor: not-allowed;
+	opacity: 0.55;
+}
+
+.ba-wall-range::-webkit-slider-runnable-track {
+	height: 6px;
+	border-radius: 999px;
+	background: linear-gradient(
+		90deg,
+		var(--ba-sky) 0%,
+		var(--ba-sky) var(--ba-wall-fill, 0%),
+		rgba(18, 138, 250, 0.16) var(--ba-wall-fill, 0%),
+		rgba(18, 138, 250, 0.16) 100%
+	);
+}
+
+.ba-wall-range::-webkit-slider-thumb {
+	-webkit-appearance: none;
+	appearance: none;
+	width: 16px;
+	height: 16px;
+	margin-top: -5px;
+	border: 3px solid var(--ba-sky);
+	border-radius: 50%;
+	background: #ffffff;
+	box-shadow: 0 1px 2px rgba(9, 42, 76, 0.28);
+}
+
+.ba-wall-range:focus-visible {
+	outline: 2px solid var(--ba-sky);
+	outline-offset: 2px;
+}
+
+.ba-wall-hint {
+	margin: 0;
+	font-size: 10.5px;
+	line-height: 1.45;
+	color: var(--ba-muted);
 }
 
 /* ---------- reasoning / tool disclosures -------------------------------- */

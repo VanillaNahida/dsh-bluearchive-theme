@@ -41,6 +41,12 @@ window.__ModuleLoader__.load({
 		const SETTINGS_NS = 'bluearchive-theme';
 		const STORAGE_KEY = 'dsh.bluearchive-theme.settings.v1';
 		const COOKIE_KEY = 'bluearchive-theme';
+		// The picked wallpaper is megabytes of base64, so it lives in its own key:
+		// the settings JSON stays small enough for the cookie fallback, and a
+		// quota error can only ever cost the image, never the rest of the settings.
+		const WALLPAPER_KEY = 'dsh.bluearchive-theme.wallpaper.v1';
+		const WALLPAPER_BLUR_MAX = 24;
+		const WALLPAPER_SIDEBAR_BONUS = 5;
 		const BACKGROUNDS = ['sky', 'classroom', 'sunset', 'twilight'];
 		const VARIANTS = ['system', 'light', 'dark'];
 
@@ -53,6 +59,9 @@ window.__ModuleLoader__.load({
 			glass: true,
 			dialogArt: true,
 			clickFx: false,
+			globalFont: false,
+			wallpaper: null,
+			wallpaperBlur: 0,
 		};
 		//#endregion
 
@@ -87,8 +96,22 @@ window.__ModuleLoader__.load({
 			glassDesc: '输入框与浮层使用磨砂玻璃',
 			dialogArt: '弹窗插画',
 			dialogArtDesc: '设置弹窗顶部使用低多边形插画带',
+			globalFont: '全局蔚蓝档案字体',
+			globalFontDesc: '开启后界面里的所有文字都会换成 Blueaka 字体族；代码块、终端与数学公式保持原样。',
 			clickFx: '点击特效',
 			clickFxDesc: '点击时播放蔚蓝档案风格的光环、碎片与拖尾',
+			wallpaper: '界面背景壁纸',
+			wallpaperHint: '选择一张图片作为整个界面的背景，并调节毛玻璃的模糊强度。侧边栏会自动比会话窗口更朦胧。',
+			wallpaperTagOn: '已启用',
+			wallpaperTagOff: '自定义',
+			wallpaperEmpty: '尚未选择图片',
+			wallpaperChoose: '选择图片',
+			wallpaperChange: '更换图片',
+			wallpaperClear: '移除背景',
+			blurLabel: '磨砂程度',
+			blurChat: '会话',
+			blurSidebar: '侧边栏',
+			blurHint: '侧边栏自动加深 5 px；数值越大，背景越朦胧。选择上方场景会移除自定义壁纸。',
 			hint: '深浅色跟随上方「外观」设置，其余选项即时生效。',
 		};
 		const EN = {
@@ -113,8 +136,22 @@ window.__ModuleLoader__.load({
 			glassDesc: 'Frosted glass for the composer and popovers',
 			dialogArt: 'Dialog artwork',
 			dialogArtDesc: 'Use the low-poly band on the settings dialog',
+			globalFont: 'Global Blueaka font',
+			globalFontDesc: 'Render every label and paragraph in the Blueaka family; code blocks, terminals and math keep their own fonts.',
 			clickFx: 'Click effects',
 			clickFxDesc: 'Play Blue Archive halos, shards and trails on click',
+			wallpaper: 'Wallpaper',
+			wallpaperHint: 'Use a picture as the backdrop for the whole UI and tune the frosted blur. The sidebar stays one step hazier than the conversation.',
+			wallpaperTagOn: 'Active',
+			wallpaperTagOff: 'Custom',
+			wallpaperEmpty: 'No image yet',
+			wallpaperChoose: 'Choose image',
+			wallpaperChange: 'Change image',
+			wallpaperClear: 'Remove',
+			blurLabel: 'Frost',
+			blurChat: 'Chat',
+			blurSidebar: 'Sidebar',
+			blurHint: 'The sidebar adds 5 px on top; higher values make the backdrop hazier. Picking a scene above removes the custom wallpaper.',
 			hint: 'Light and dark follow the Appearance setting above; other options apply instantly.',
 		};
 		//#endregion
@@ -144,13 +181,26 @@ window.__ModuleLoader__.load({
 			const next = { ...DEFAULT_SETTINGS, ...(parsed && typeof parsed === 'object' ? parsed : {}) };
 			if (!BACKGROUNDS.includes(next.background)) next.background = DEFAULT_SETTINGS.background;
 			if (!VARIANTS.includes(next.variant)) next.variant = DEFAULT_SETTINGS.variant;
-			for (const key of ['enabled', 'mascot', 'pattern', 'glass', 'dialogArt', 'clickFx']) {
+			for (const key of ['enabled', 'mascot', 'pattern', 'glass', 'dialogArt', 'clickFx', 'globalFont']) {
 				next[key] = next[key] !== false;
 			}
+			next.wallpaper = typeof next.wallpaper === 'string' && next.wallpaper.startsWith('data:image/') ? next.wallpaper : null;
+			const blur = Number(next.wallpaperBlur);
+			next.wallpaperBlur = Number.isFinite(blur) ? Math.min(WALLPAPER_BLUR_MAX, Math.max(0, Math.round(blur))) : DEFAULT_SETTINGS.wallpaperBlur;
 			return next;
 		}
 
+		function readStoredWallpaper() {
+			try {
+				const value = localStorage.getItem(WALLPAPER_KEY);
+				return typeof value === 'string' && value.startsWith('data:image/') ? value : null;
+			} catch {
+				return null;
+			}
+		}
+
 		let settings = sanitize(localStorage.getItem(STORAGE_KEY) || readCookie(COOKIE_KEY));
+		if (settings.wallpaper === null) settings.wallpaper = readStoredWallpaper();
 		const listeners = new Set();
 		let engine = null;
 
@@ -170,13 +220,21 @@ window.__ModuleLoader__.load({
 		}
 
 		function persist() {
-			const raw = JSON.stringify(settings);
+			const { wallpaper, ...rest } = settings;
+			const raw = JSON.stringify(rest);
 			try {
 				localStorage.setItem(STORAGE_KEY, raw);
 			} catch {
 				/* private mode: the cookie below is the fallback */
 			}
 			document.cookie = `${COOKIE_KEY}=${encodeURIComponent(raw)}; path=/; max-age=31536000; SameSite=Lax`;
+			try {
+				if (typeof wallpaper === 'string' && wallpaper.startsWith('data:image/')) localStorage.setItem(WALLPAPER_KEY, wallpaper);
+				else localStorage.removeItem(WALLPAPER_KEY);
+			} catch (error) {
+				// Quota exhausted: the image stays for this tab, the rest is unaffected.
+				console.warn('[bluearchive] wallpaper could not be stored', error);
+			}
 		}
 
 		function updateSettings(patch) {
@@ -205,6 +263,83 @@ window.__ModuleLoader__.load({
 			sunset: `url("${ASSETS.bgSunset}")`,
 			twilight: `url("${ASSETS.bgTwilight}")`,
 		};
+
+		// A wallpaper is stored as a data URL so it survives a reload without a
+		// host round-trip. Camera JPEGs are far too large for storage, so the file
+		// is decoded once and re-encoded down a ladder until it fits comfortably.
+		const WALLPAPER_LADDER = [
+			[1600, 0.82],
+			[1280, 0.78],
+			[1024, 0.72],
+			[768, 0.66],
+		];
+		const WALLPAPER_TARGET_CHARS = 900000;
+
+		function decodeWallpaper(file) {
+			if (typeof createImageBitmap === 'function') {
+				return createImageBitmap(file).catch(() => loadImageElement(file));
+			}
+			return loadImageElement(file);
+		}
+
+		function loadImageElement(file) {
+			return new Promise((resolve, reject) => {
+				const url = URL.createObjectURL(file);
+				const image = new Image();
+				image.onload = () => {
+					URL.revokeObjectURL(url);
+					resolve(image);
+				};
+				image.onerror = () => {
+					URL.revokeObjectURL(url);
+					reject(new Error('image decode failed'));
+				};
+				image.src = url;
+			});
+		}
+
+		function drawWallpaper(source, maxEdge, quality) {
+			const width = source.width || source.naturalWidth || 0;
+			const height = source.height || source.naturalHeight || 0;
+			if (width === 0 || height === 0) return '';
+			const scale = Math.min(1, maxEdge / Math.max(width, height));
+			const canvas = document.createElement('canvas');
+			canvas.width = Math.max(1, Math.round(width * scale));
+			canvas.height = Math.max(1, Math.round(height * scale));
+			const context = canvas.getContext('2d');
+			if (!context) return '';
+			context.imageSmoothingEnabled = true;
+			context.imageSmoothingQuality = 'high';
+			context.drawImage(source, 0, 0, canvas.width, canvas.height);
+			let url = '';
+			try {
+				url = canvas.toDataURL('image/webp', quality);
+			} catch {
+				url = '';
+			}
+			if (!url.startsWith('data:image/webp')) {
+				try {
+					url = canvas.toDataURL('image/jpeg', quality);
+				} catch {
+					url = '';
+				}
+			}
+			return url;
+		}
+
+		async function encodeWallpaper(file) {
+			const source = await decodeWallpaper(file);
+			try {
+				let url = '';
+				for (const [maxEdge, quality] of WALLPAPER_LADDER) {
+					url = drawWallpaper(source, maxEdge, quality);
+					if (url && url.length <= WALLPAPER_TARGET_CHARS) break;
+				}
+				return url.startsWith('data:image/') ? url : '';
+			} finally {
+				if (typeof source.close === 'function') source.close();
+			}
+		}
 		//#endregion
 
 		//#region stylesheet
@@ -221,6 +356,30 @@ window.__ModuleLoader__.load({
 			const t = typeof props.t === 'function' ? props.t : (key) => key;
 			const set = updateSettings;
 
+			const wallpaper = typeof state.wallpaper === 'string' && state.wallpaper.startsWith('data:image/') ? state.wallpaper : null;
+			const blur = Math.min(WALLPAPER_BLUR_MAX, Math.max(0, Number(state.wallpaperBlur) || 0));
+			const sidebarBlur = blur + WALLPAPER_SIDEBAR_BONUS;
+
+			// The picker is created on demand inside the click gesture: a detached
+			// input still opens the chooser, and nothing has to survive a re-render.
+			const onPickWallpaper = () => {
+				const input = document.createElement('input');
+				input.type = 'file';
+				input.accept = 'image/*';
+				input.addEventListener('change', async () => {
+					const file = input.files && input.files[0];
+					if (!file) return;
+					try {
+						const url = await encodeWallpaper(file);
+						if (url) set({ wallpaper: url });
+						else console.warn('[bluearchive] wallpaper encode produced no image');
+					} catch (error) {
+						console.warn('[bluearchive] wallpaper failed', error);
+					}
+				}, { once: true });
+				input.click();
+			};
+
 			const swatches = BACKGROUNDS.map((id) =>
 				jsxs(
 					'button',
@@ -235,7 +394,7 @@ window.__ModuleLoader__.load({
 							backgroundSize: id === 'sky' ? 'auto' : 'cover',
 							backgroundPosition: 'center',
 						},
-						onClick: () => set({ background: id }),
+						onClick: () => set({ background: id, wallpaper: null }),
 					},
 					[
 						jsx('span', { className: 'ba-swatch-check', 'aria-hidden': 'true' }),
@@ -320,11 +479,87 @@ window.__ModuleLoader__.load({
 					jsxs('section', { className: 'ba-block' }, [
 						jsxs('div', { className: 'ba-block-head' }, [
 							jsxs('div', null, [
+								jsx('h3', { className: 'ba-block-title' }, t('wallpaper')),
+								jsx('p', { className: 'ba-block-desc' }, t('wallpaperHint')),
+							]),
+							jsx('span', { className: 'ba-block-tag' }, t(wallpaper === null ? 'wallpaperTagOff' : 'wallpaperTagOn')),
+						]),
+						jsxs('div', { className: 'ba-wall' }, [
+							jsx(
+								'div',
+								{ className: 'ba-wall-thumb', 'data-empty': wallpaper === null },
+								wallpaper === null
+									? jsx('span', { className: 'ba-wall-empty' }, t('wallpaperEmpty'))
+									: jsx('img', { src: wallpaper, alt: '', draggable: false }),
+							),
+							jsxs('div', { className: 'ba-wall-copy' }, [
+								jsxs('div', { className: 'ba-wall-actions' }, [
+									jsx(
+										'button',
+										{ type: 'button', className: 'ba-chip', onClick: onPickWallpaper },
+										t(wallpaper === null ? 'wallpaperChoose' : 'wallpaperChange'),
+									),
+									jsx(
+										'button',
+										{
+											type: 'button',
+											className: 'ba-chip',
+											disabled: wallpaper === null,
+											onClick: () => set({ wallpaper: null }),
+										},
+										t('wallpaperClear'),
+									),
+								]),
+								jsxs('div', { className: 'ba-wall-slider' }, [
+									jsxs('div', { className: 'ba-wall-values' }, [
+										jsx('span', null, t('blurLabel')),
+										jsx('span', null, `${t('blurChat')} ${blur} px · ${t('blurSidebar')} ${sidebarBlur} px`),
+									]),
+									jsx('input', {
+										type: 'range',
+										className: 'ba-wall-range',
+										min: 0,
+										max: WALLPAPER_BLUR_MAX,
+										step: 1,
+										value: blur,
+										disabled: wallpaper === null,
+										'aria-label': t('blurLabel'),
+										style: { '--ba-wall-fill': `${(blur / WALLPAPER_BLUR_MAX) * 100}%` },
+										onChange: (event) => set({ wallpaperBlur: Number(event.currentTarget.value) }),
+									}),
+								]),
+								jsx('p', { className: 'ba-wall-hint' }, t('blurHint')),
+							]),
+						]),
+					]),
+					jsxs('section', { className: 'ba-block' }, [
+						jsxs('div', { className: 'ba-block-head' }, [
+							jsxs('div', null, [
 								jsx('h3', { className: 'ba-block-title' }, t('decor')),
 								jsx('p', { className: 'ba-block-desc' }, t('decorHint')),
 							]),
 						]),
 						jsx('div', { className: 'ba-options' }, options),
+					]),
+					jsxs('section', { className: 'ba-block ba-block-fx' }, [
+						jsxs('div', { className: 'ba-block-head' }, [
+							jsxs('div', null, [
+								jsx('h3', { className: 'ba-block-title' }, t('globalFont')),
+								jsx('p', { className: 'ba-block-desc' }, t('globalFontDesc')),
+							]),
+							jsx(
+								'button',
+								{
+									type: 'button',
+									className: 'ba-switch',
+									role: 'switch',
+									'aria-checked': Boolean(state.globalFont),
+									'aria-label': t('globalFont'),
+									onClick: () => set({ globalFont: !state.globalFont }),
+								},
+								jsx('span', { className: 'ba-knob', 'aria-hidden': 'true' }),
+							),
+						]),
 					]),
 					jsxs('section', { className: 'ba-block ba-block-fx' }, [
 						jsxs('div', { className: 'ba-block-head' }, [
@@ -386,10 +621,10 @@ window.__ModuleLoader__.load({
 			}
 
 			function clearPaint() {
-				for (const key of ['baTheme', 'baBg', 'baMascot', 'baPattern', 'baGlass', 'baDialog', 'baNarrow', 'baClickFx']) {
+				for (const key of ['baTheme', 'baBg', 'baMascot', 'baPattern', 'baGlass', 'baDialog', 'baNarrow', 'baClickFx', 'baWall', 'baFont']) {
 					delete body.dataset[key];
 				}
-				for (const name of ['--ba-mascot', '--ba-photo', '--ba-pattern-img', '--ba-deco-img', '--ba-banner-img', '--ba-card-art']) {
+				for (const name of ['--ba-mascot', '--ba-photo', '--ba-pattern-img', '--ba-deco-img', '--ba-banner-img', '--ba-card-art', '--ba-wall', '--ba-wall-blur', '--ba-wall-blur-side', '--ba-wall-inset']) {
 					body.style.removeProperty(name);
 				}
 			}
@@ -443,6 +678,7 @@ window.__ModuleLoader__.load({
 				body.dataset.baPattern = settings.pattern ? 'on' : 'off';
 				body.dataset.baGlass = settings.glass ? 'on' : 'off';
 				body.dataset.baDialog = settings.dialogArt ? 'on' : 'off';
+				body.dataset.baFont = settings.globalFont ? 'on' : 'off';
 				body.dataset.baNarrow = document.documentElement.clientWidth < 900 ? 'on' : 'off';
 				body.style.setProperty('--ba-mascot', `url("${scheme === 'dark' ? ASSETS.plana : ASSETS.arona}")`);
 				body.style.setProperty('--ba-pattern-img', `url("${ASSETS.pattern}")`);
@@ -451,6 +687,21 @@ window.__ModuleLoader__.load({
 				body.style.setProperty('--ba-card-art', `url("${ASSETS.card}")`);
 				const photo = BACKGROUND_ASSET[settings.background];
 				body.style.setProperty('--ba-photo', photo ? `url("${ASSETS[photo]}")` : 'none');
+				const wallpaper = typeof settings.wallpaper === 'string' && settings.wallpaper.startsWith('data:image/') ? settings.wallpaper : null;
+				const blur = wallpaper ? Math.min(WALLPAPER_BLUR_MAX, Math.max(0, settings.wallpaperBlur)) : 0;
+				body.dataset.baWall = wallpaper ? 'on' : 'off';
+				if (wallpaper) {
+					body.style.setProperty('--ba-wall', `url("${wallpaper}")`);
+					body.style.setProperty('--ba-wall-blur', `${blur}px`);
+					body.style.setProperty('--ba-wall-blur-side', `${blur + WALLPAPER_SIDEBAR_BONUS}px`);
+					// The layer is oversized so the blur's transparent halo stays off-screen.
+					body.style.setProperty('--ba-wall-inset', `${-(blur * 2 + 12)}px`);
+				} else {
+					body.style.removeProperty('--ba-wall');
+					body.style.removeProperty('--ba-wall-blur');
+					body.style.removeProperty('--ba-wall-blur-side');
+					body.style.removeProperty('--ba-wall-inset');
+				}
 			}
 
 			function enable() {
